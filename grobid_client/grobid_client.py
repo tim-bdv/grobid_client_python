@@ -32,11 +32,13 @@ class ServerUnavailableException(Exception):
 
 class GrobidClient(ApiClient):
 
-    def __init__(self, grobid_server='localhost', 
+    def __init__(self, 
+                 grobid_server='localhost', 
                  batch_size=1000, 
                  coordinates=["persName", "figure", "ref", "biblStruct", "formula", "s", "note", "title"], 
                  sleep_time=5,
                  timeout=60,
+                 headers={},
                  config_path=None, 
                  check_server=True):
         self.config = {
@@ -44,7 +46,8 @@ class GrobidClient(ApiClient):
             'batch_size': batch_size,
             'coordinates': coordinates,
             'sleep_time': sleep_time,
-            'timeout': timeout
+            'timeout': timeout,
+            'headers': headers
         }
         if config_path:
             self._load_config(config_path)
@@ -56,13 +59,15 @@ class GrobidClient(ApiClient):
         Load the json configuration
         """
         config_json = open(path).read()
-        self.config = json.loads(config_json)
+        # Update configuration with the loaded settings
+        loaded_config = json.loads(config_json)
+        self.config.update(loaded_config)
 
     def _test_server_connection(self):
         """Test if the server is up and running."""
         the_url = self.get_server_url("isalive")
         try:
-            r = requests.get(the_url)
+            r = requests.get(the_url, headers=self.config['headers'])
         except:
             print("GROBID server does not appear up and running, the connection to the server failed")
             raise ServerUnavailableException
@@ -286,7 +291,7 @@ class GrobidClient(ApiClient):
 
         try:
             res, status = self.post(
-                url=the_url, files=files, data=the_data, headers={"Accept": "text/plain"}, timeout=self.config['timeout']
+                url=the_url, files=files, data=the_data, headers={"Accept": "text/plain"} | self.config['headers'], timeout=self.config['timeout']
             )
 
             if status == 503:
@@ -339,7 +344,7 @@ class GrobidClient(ApiClient):
             the_data["includeRawCitations"] = "1"
         the_data["citations"] = references
         res, status = self.post(
-            url=the_url, data=the_data, headers={"Accept": "application/xml"}
+            url=the_url, data=the_data, headers={"Accept": "application/xml"} | self.config['headers']
         )
 
         if status == 503:
